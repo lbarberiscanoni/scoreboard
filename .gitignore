@@ -1,0 +1,7 @@
+.env
+node_modules/
+.temp
+config.toml
+*.sql
+.vscode/
+deno.lock

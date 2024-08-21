@@ -6,13 +6,13 @@ At this stage, the Edge Function on Supabase tracks when a checkbox gets checked
 
 ## Roadmap
 
-[] Only save data if there has been a change on the Notion 
-[] Listen for Github Commits
-    - [] Valyria 
-    - [] Cassandra
-[] Migrate from Google Sheets to Supabase 
-    - [] Setup Schema on Supabase
-[] Line Chart
-    - [] Valyria Chart
-    - [] Cassandra Code Chart
-    - [] Cassandra Documentation Chart
+- [ ] Only save data if there has been a change on the Notion 
+- [ ] Listen for Github Commits
+    - [ ] Valyria 
+    - [ ] Cassandra
+- [ ] Migrate from Google Sheets to Supabase 
+    - [ ] Setup Schema on Supabase
+- [ ] Line Chart
+    - [ ] Valyria Chart
+    - [ ] Cassandra Code Chart
+    - [ ] Cassandra Documentation Chart

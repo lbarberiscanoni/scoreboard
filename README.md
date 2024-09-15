@@ -25,6 +25,8 @@ We also have an initial schema that will help us track all of the Events for the
     - `name`: organization's name [Valyria, Cassandra]
     - `createdAt`: timestamp of when the organization was created
         - This is useful to track how many days since inception like Ramp does 
+    - `notion-api-key`: Notion's API key for tracking
+    - `github-api-key`: Github API for the repos 
 2. Users
     - `id`: primary key 
     - `org_id`: foreign key reference to the Organization the User is a part of
@@ -35,25 +37,28 @@ We also have an initial schema that will help us track all of the Events for the
     - `name`: username 
     - `createdAt`: timestamp of when the user joined the organization 
         - similary useful to observe ramp-up time 
-3. Events
+3. InputTypes 
+    - `id`
+    - `name`: ["notion", "code", "email"]
+4. Events
     - `id`: primary key 
     - `org_id`: foreign key reference to an Organization 
     - `user_id`: foreign key reference to the User
-    - `type_id`: foreign key reference to Repositories or NotionPages
+    - `input_type_id`: foreign key reference to Repositories or NotionPages
     - `timestamp`: timestamp of when the input took place
     - `details`: JSON field to store event-specific details (e.g., commit message, notion page ID)
-4. Repositories
+5. Repositories
     - `id`
     - `org_id`
     - `repo_name`
     - `webhook_secret`: the unique key for the repo's Github's webhook
     - `is_active`: [true, false] to represent active and inactive
     - `tracked_since`: timestamp of when the repo was first registered for tracking
-5. NotionPages
+6. NotionPages
     - `id`
     - `org_id`
     - `page_id`
     - `is_active`: [true, false] to represent active and inactive
     - `tracked_since`: timestamp of when the repo was first registered for tracking
-6. Emails
+7. Emails
     - will support this later

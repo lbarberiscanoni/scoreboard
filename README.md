@@ -12,7 +12,6 @@ We also have an initial schema that will help us track all of the Events for the
     - [ ] Only save data if there has been a change on the Notion 
 - [ ] Dynamically track Github Repos
 - [ ] Line Chart
-    - [ ] Valyria Chart
     - [ ] Cassandra Code Chart
     - [ ] Cassandra Documentation Chart
 

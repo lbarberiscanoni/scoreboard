@@ -8,8 +8,6 @@ We also have an initial schema that will help us track all of the Events for the
 
 ## Roadmap
 
-- [ ] Implement the Schema 
-    - [ ] Back-populate with the data from Google Sheets
 - [ ] Dynamically track Notion Pages 
     - [ ] Only save data if there has been a change on the Notion 
 - [ ] Dynamically track Github Repos
@@ -33,7 +31,7 @@ We also have an initial schema that will help us track all of the Events for the
     - `org_id`: foreign key reference to the Organization the User is a part of
     - `email`: email address for the User
         - might come in handy for notification purposes 
-    - `role`: User's role within the Organization [developer]
+    - `role`: User's role within the Organization [developer, lawyer, designer]
         - not useful yet but it may come in handy as we start having multiple type of contributors whose expectations are different 
     - `name`: username 
     - `createdAt`: timestamp of when the user joined the organization 
@@ -42,7 +40,7 @@ We also have an initial schema that will help us track all of the Events for the
     - `id`: primary key 
     - `org_id`: foreign key reference to an Organization 
     - `user_id`: foreign key reference to the User
-    - `type_d`: oreign key reference to Repositories or NotionPages
+    - `type_id`: foreign key reference to Repositories or NotionPages
     - `timestamp`: timestamp of when the input took place
     - `details`: JSON field to store event-specific details (e.g., commit message, notion page ID)
 4. Repositories

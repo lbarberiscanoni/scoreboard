@@ -8,8 +8,6 @@ We also have an initial schema that will help us track all of the Events for the
 
 ## Roadmap
 
-- [ ] Dynamically track Notion Pages 
-    - [ ] Only save data if there has been a change on the Notion 
 - [ ] Dynamically track Github Repos
 - [ ] Line Chart
     - [ ] Cassandra Code Chart

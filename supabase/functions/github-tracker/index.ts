@@ -42,8 +42,15 @@ serve({
       return new Response('Method not allowed', { status: 405 });
     }
 
+    const eventType = req.headers.get('X-GitHub-Event');
     const signature = req.headers.get('X-Hub-Signature-256');
     const body = await req.text(); // Read the request body once
+
+    // Handle "ping" event from GitHub
+    if (eventType === 'ping') {
+      console.log('Received a ping event from GitHub.');
+      return new Response('Ping event received', { status: 200 });
+    }
 
     // Parse the GitHub webhook payload
     let payload;
@@ -54,25 +61,21 @@ serve({
       return new Response('Invalid JSON payload', { status: 400 });
     }
 
-    const repoName = payload.repository.full_name;
-    const commitUserName = payload.sender.login; // GitHub username of the committer
+    const repoName = payload.repository?.full_name;
+    const commitUserName = payload.sender?.login; // GitHub username of the committer
 
     console.log(repoName, commitUserName);
 
-    // Fetch the user using the github_username
-    const { data: userData, error: userError } = await supabase
+    // Fetch the users using the github_username
+    const { data: usersData, error: usersError } = await supabase
       .from('users')
       .select('id, org_id')
-      .eq('github_username', commitUserName)
-      .maybeSingle();
+      .eq('github_username', commitUserName);
 
-    if (userError || !userData) {
-      console.error('User not found or error fetching user data:', userError || 'No user found');
+    if (usersError || !usersData || usersData.length === 0) {
+      console.error('User not found or error fetching user data:', usersError || 'No user found');
       return new Response('User not found or error fetching user data', { status: 404 });
     }
-
-    const userId = userData.id;
-    const orgId = userData.org_id;
 
     // Fetch repository details from Supabase
     const { data: repoData, error: repoError } = await supabase
@@ -91,7 +94,7 @@ serve({
 
     // Verify the GitHub webhook signature
     if (!(await verifyGitHubSignature(body, webhookSecret, signature))) {
-      console.log("signature fail");
+      console.log("Signature mismatch");
       return new Response('Invalid signature', { status: 401 });
     }
 
@@ -119,25 +122,30 @@ serve({
           const commitTime = new Date(commit.timestamp).toISOString();
           const commitMessage = commit.message;
 
-          const { error } = await supabase
-            .from('events')
-            .insert([
-              {
-                org_id: orgId,
-                user_id: userId,
-                input_type_id: inputTypeId, // Dynamically fetched input_type_id for "code"
-                timestamp: commitTime,
-                details: JSON.stringify({
-                  repo_id: repoId,
-                  commit_message: commitMessage,
-                }),
-              },
-            ]);
+          // Loop through each user associated with the GitHub username
+          for (const user of usersData) {
+            const { id: userId, org_id: orgId } = user;
 
-          if (error) {
-            console.error('Error saving commit data to Supabase:', error);
-          } else {
-            console.log('Commit data saved to Supabase successfully.');
+            const { error } = await supabase
+              .from('events')
+              .insert([
+                {
+                  org_id: orgId,
+                  user_id: userId,
+                  input_type_id: inputTypeId, // Use dynamically fetched input_type_id for "code"
+                  timestamp: commitTime,
+                  details: JSON.stringify({
+                    repo_id: repoId,
+                    commit_message: commitMessage,
+                  }),
+                },
+              ]);
+
+            if (error) {
+              console.error('Error saving commit data to Supabase:', error);
+            } else {
+              console.log(`Commit data saved to Supabase successfully for user ${userId}.`);
+            }
           }
         }
       }

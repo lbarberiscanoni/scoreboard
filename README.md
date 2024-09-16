@@ -35,6 +35,8 @@ We also have an initial schema that will help us track all of the Events for the
     - `name`: username 
     - `createdAt`: timestamp of when the user joined the organization 
         - similary useful to observe ramp-up time 
+    - `github_username`
+    - `notion_username`
 3. InputTypes 
     - `id`
     - `name`: ["notion", "code", "email"]

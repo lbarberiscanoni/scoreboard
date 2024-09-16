@@ -8,7 +8,6 @@ We also have an initial schema that will help us track all of the Events for the
 
 ## Roadmap
 
-- [ ] Dynamically track Github Repos
 - [ ] Line Chart
     - [ ] Cassandra Code Chart
     - [ ] Cassandra Documentation Chart

@@ -38,7 +38,7 @@ We also have an initial schema that will help us track all of the Events for the
     - `notion_username`
 3. InputTypes 
     - `id`
-    - `name`: ["notion", "code", "email"]
+    - `name`: ["notion", "code", "email", "documentation"]
 4. Events
     - `id`: primary key 
     - `org_id`: foreign key reference to an Organization 

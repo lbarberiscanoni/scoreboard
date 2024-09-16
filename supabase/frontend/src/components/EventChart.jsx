@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useParams } from 'react-router-dom';
 import { Line } from 'react-chartjs-2';
 import { Chart, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import { createClient } from '@supabase/supabase-js';
@@ -10,103 +11,136 @@ const supabaseKey = process.env.REACT_APP_SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const EventChart = () => {
+  const { organization, inputType } = useParams(); // Get organization and inputType from URL parameters
   const [chartData, setChartData] = useState({
     labels: [],
     datasets: [],
   });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const { data: users, error: userError } = await supabase
-        .from('users')
-        .select('id, name')
-        .eq('org_id', 2); // Assuming org_id = 2 is Valyria
+  // Memoized fetching of data
+  const fetchData = useMemo(() => {
+    return async () => {
+      setLoading(true);
+      setError(null);
 
-      if (userError) {
-        console.error('Error fetching users:', userError);
-        return;
-      }
+      try {
+        // Fetch organization details based on URL parameter
+        const { data: orgData, error: orgError } = await supabase
+          .from('organizations')
+          .select('id')
+          .eq('name', organization)
+          .single();
 
-      const { data: events, error: eventError } = await supabase
-        .from('events')
-        .select('*')
-        .eq('org_id', 2) // Assuming org_id = 2 is Valyria
-        .order('timestamp', { ascending: true });
+        if (orgError || !orgData) {
+          throw new Error('Organization not found or error fetching organization data');
+        }
 
-      if (eventError) {
-        console.error('Error fetching events:', eventError);
-        return;
-      }
+        const orgId = orgData.id;
 
-      if (events && events.length > 0) {
-        const userMap = users.reduce((map, user) => {
-          map[user.id] = user.name;
-          return map;
-        }, {});
+        // Fetch input type ID based on inputType URL parameter
+        const { data: inputTypeData, error: inputTypeError } = await supabase
+          .from('input_types')
+          .select('id')
+          .eq('name', inputType)
+          .single();
 
-        const groupedByUser = events.reduce((acc, event) => {
-          const userId = event.user_id;
-          if (!acc[userId]) acc[userId] = [];
-          acc[userId].push(event);
-          return acc;
-        }, {});
+        if (inputTypeError || !inputTypeData) {
+          throw new Error('Input type not found or error fetching input type');
+        }
 
-        const userCommitCounts = {};
-        const colorMap = generateColors(Object.keys(groupedByUser).length);
-        const datasets = Object.keys(groupedByUser).map((userId, index) => {
-          const userEvents = groupedByUser[userId];
-          const data = [];
-          let prevTimestamp = null;
+        const inputTypeId = inputTypeData.id;
 
-          userEvents.forEach((event, index) => {
-            if (prevTimestamp) {
-              const diff = (new Date(event.timestamp) - new Date(prevTimestamp)) / (1000 * 60 * 60 * 24); // Difference in days
-              data.push(diff);
-            } else {
-              data.push(0); // Initial value
-            }
-            prevTimestamp = event.timestamp;
+        // Fetch users associated with the organization
+        const { data: users, error: userError } = await supabase
+          .from('users')
+          .select('id, name')
+          .eq('org_id', orgId);
+
+        if (userError) throw userError;
+
+        // Fetch events based on the organization ID and input type ID
+        const { data: events, error: eventError } = await supabase
+          .from('events')
+          .select('*')
+          .eq('org_id', orgId)
+          .eq('input_type_id', inputTypeId)
+          .order('timestamp', { ascending: true });
+
+        if (eventError) throw eventError;
+
+        if (events && events.length > 0) {
+          const userMap = users.reduce((map, user) => {
+            map[user.id] = user.name;
+            return map;
+          }, {});
+
+          const groupedByUser = events.reduce((acc, event) => {
+            const userId = event.user_id;
+            if (!acc[userId]) acc[userId] = [];
+            acc[userId].push(event);
+            return acc;
+          }, {});
+
+          const userCommitCounts = {};
+          const colorMap = generateColors(Object.keys(groupedByUser).length);
+          const datasets = Object.keys(groupedByUser).map((userId, index) => {
+            const userEvents = groupedByUser[userId];
+            const data = [];
+            let prevTimestamp = null;
+
+            userEvents.forEach((event) => {
+              if (prevTimestamp) {
+                const diff = (new Date(event.timestamp) - new Date(prevTimestamp)) / (1000 * 60 * 60 * 24); // Difference in days
+                data.push(diff);
+              } else {
+                data.push(0); // Initial value
+              }
+              prevTimestamp = event.timestamp;
+            });
+
+            userCommitCounts[userId] = userEvents.length;
+
+            return {
+              label: `${userMap[userId] || `User ${userId}`} (${userCommitCounts[userId]})`,
+              data,
+              fill: false,
+              borderColor: colorMap[index],
+              backgroundColor: colorMap[index],
+              pointBackgroundColor: colorMap[index],
+              pointBorderColor: colorMap[index],
+            };
           });
 
-          userCommitCounts[userId] = userEvents.length;
+          const sortedDatasets = datasets.sort((a, b) => b.data.length - a.data.length); // Sort by number of commits
+          const commitNumbers = events.map((_, index) => `${index + 1}`);
 
-          return {
-            label: `${userMap[userId] || `User ${userId}`} (${userCommitCounts[userId]})`,
-            data,
-            fill: false,
-            borderColor: colorMap[index],
-            backgroundColor: colorMap[index],
-            pointBackgroundColor: colorMap[index],
-            pointBorderColor: colorMap[index],
-          };
-        });
-
-        const sortedDatasets = datasets.sort((a, b) => {
-          const userAId = Object.keys(userMap).find((key) => userMap[key] === a.label.split(' ')[0]);
-          const userBId = Object.keys(userMap).find((key) => userMap[key] === b.label.split(' ')[0]);
-          return (userCommitCounts[userBId] || 0) - (userCommitCounts[userAId] || 0);
-        });
-
-        const commitNumbers = events.map((_, index) => `${index + 1}`);
-
-        setChartData({
-          labels: commitNumbers,
-          datasets: sortedDatasets,
-        });
-      } else {
-        console.warn('No events found.');
+          setChartData({
+            labels: commitNumbers,
+            datasets: sortedDatasets,
+          });
+        } else {
+          console.warn('No events found.');
+        }
+      } catch (err) {
+        setError(err.message);
+        console.error(err);
+      } finally {
+        setLoading(false);
       }
     };
+  }, [organization, inputType]); // Dependencies for memoization
 
-    fetchData();
-  }, []);
+  useEffect(() => {
+    fetchData(); // Call the memoized function
+  }, [fetchData]);
 
-  // Function to generate high-contrast colors dynamically
   const generateColors = (numColors) => {
     const colors = [];
     for (let i = 0; i < numColors; i++) {
       const hue = (i * 360) / numColors;
-      colors.push(`hsl(${hue}, 70%, 50%)`); // Adjust saturation and lightness as needed
+      colors.push(`hsl(${hue}, 70%, 50%)`);
     }
     return colors;
   };
@@ -120,14 +154,12 @@ const EventChart = () => {
   return (
     <div style={{ width: '100%', maxWidth: '1000px', margin: 'auto' }}>
       <h2>Time Between Commits</h2>
-      {chartData.labels.length > 0 ? (
-        <div
-          style={{
-            position: 'relative',
-            height: '80vh', // Adjust height as needed
-            width: '100%',
-          }}
-        >
+      {loading ? (
+        <p>Loading chart data...</p>
+      ) : error ? (
+        <p>{error}</p>
+      ) : chartData.labels.length > 0 ? (
+        <div style={{ position: 'relative', height: '80vh', width: '100%' }}>
           <Line
             data={chartData}
             options={{
@@ -139,7 +171,7 @@ const EventChart = () => {
                     display: true,
                     text: 'Commit #',
                   },
-                  max: maxCommits, // Cut off extra whitespace
+                  max: maxCommits + 10, // Set the maximum value to the max commits + 10
                 },
                 y: {
                   title: {
@@ -163,7 +195,7 @@ const EventChart = () => {
           />
         </div>
       ) : (
-        <p>Loading chart data...</p>
+        <p>No data available.</p>
       )}
     </div>
   );

@@ -3,10 +3,15 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { Client as NotionClient } from 'https://esm.sh/@notionhq/client';
 import 'https://deno.land/x/dotenv/load.ts';
 
+console.log('Function started');
+
 // Supabase setup using environment variables
 const supabaseUrl = Deno.env.get('SUPA_URL');
 const supabaseKey = Deno.env.get('SUPA_KEY');
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+console.log('Supabase URL:', supabaseUrl);
+console.log('Supabase Key:', supabaseKey);
 
 // Function to retrieve user details from Notion API
 async function getNotionUserName(notionClient, userId) {
@@ -21,6 +26,8 @@ async function getNotionUserName(notionClient, userId) {
 
 async function trackNotionPages() {
   try {
+    console.log('Polling for changes in Notion pages...');
+
     // Fetch the list of active Notion pages and corresponding organization info from Supabase
     const { data: notionPages, error: pagesError } = await supabase
       .from('notion_pages')
@@ -66,11 +73,18 @@ async function trackNotionPages() {
       const response = await notion.blocks.children.list({ block_id: pageId });
       const blocks = response.results;
 
+      // Filter to-do (checkbox) blocks
       const checkboxBlocks = blocks.filter((block) => block.type === 'to_do');
       console.log("Checkbox Blocks:", checkboxBlocks);
 
       for (const checkboxBlock of checkboxBlocks) {
-        const checkboxValue = checkboxBlock.to_do.checked;
+        const checkboxValue = checkboxBlock.to_do.checked; // Get the checkbox value
+        const blockId = checkboxBlock.id; // Unique ID for each checkbox block
+
+        // Skip logging if the checkbox is unchecked
+        if (!checkboxValue) {
+          continue; // Do nothing if the checkbox is not checked
+        }
 
         // Extract the user ID from block metadata
         const userId = checkboxBlock.last_edited_by?.id || checkboxBlock.created_by?.id;
@@ -80,42 +94,74 @@ async function trackNotionPages() {
         if (userId) {
           authorName = await getNotionUserName(notion, userId);
           console.log('Fetched Author Name:', authorName);
-        }
 
-        // Fetch the last event for this page/block from Supabase to check for changes
-        const { data: lastEvent, error: lastEventError } = await supabase
-          .from('events')
-          .select('details')
-          .eq('input_type_id', 1) // Updated to use 'input_type_id' instead of 'type_id'
-          .eq('org_id', orgId)  // Ensure it matches the correct organization
-          .order('timestamp', { ascending: false })
-          .limit(1)
-          .single();
+          // Check if the user already exists in the Users table
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('id, notion_username')
+            .eq('notion_username', authorName)
+            .single();
 
-        if (lastEventError) {
-          console.error('Error fetching last event:', lastEventError);
-        } else {
-          const lastCheckboxValue = lastEvent?.details ? JSON.parse(lastEvent.details).checkbox_value : null;
+          let userIdForEvent;
 
-          if (lastCheckboxValue !== checkboxValue) {
-            // Log the checkbox event data into the "events" table with the author's username
-            const { data, error } = await supabase.from('events').insert([
+          if (userError || !userData) {
+            // User does not exist, insert new user
+            const { data: newUser, error: newUserError } = await supabase.from('users').insert([
               {
                 org_id: orgId,
-                user_id: authorName, // Save the Notion username directly as the user_id
-                input_type_id: 1, // Assuming 1 is the id for 'Notion' in input_types table
-                timestamp: new Date().toISOString(),
-                details: JSON.stringify({ page_id: pageId, checkbox_value: checkboxValue }),
+                notion_username: authorName,
               },
-            ]);
+            ]).select('*').single();
 
-            if (error) {
-              console.error('Error logging checkbox event:', error);
+            if (newUserError) {
+              console.error('Error inserting new user:', newUserError);
+              continue;
             } else {
-              console.log('Checkbox event logged with author:', authorName);
+              userIdForEvent = newUser.id;
             }
           } else {
-            console.log('Checkbox value unchanged, no event logged.');
+            // User exists, use existing user ID
+            userIdForEvent = userData.id;
+          }
+
+          // Fetch all events without any filters to debug data structure
+          const { data: allEvents, error: allEventsError } = await supabase
+            .from('events')
+            .select('details');
+
+          if (allEventsError) {
+            console.error('Error fetching all events:', allEventsError);
+          } else {
+            // Filter out events with null details
+            const validEvents = allEvents.filter(event => event.details !== null);
+
+            // Check if there is a matching event with the same block_id
+            const matchingEvent = validEvents.find(event => {
+              const details = JSON.parse(event.details);
+              return details.block_id === blockId;
+            });
+
+            if (!matchingEvent) {
+              console.log('No matching event found. Logging the current state.');
+              // No previous event found, log this as a new event
+              const { data, error } = await supabase.from('events').insert([
+                {
+                  org_id: orgId,
+                  user_id: userIdForEvent,
+                  input_type_id: 1, // Assuming 1 is the id for 'Notion' in input_types table
+                  timestamp: new Date().toISOString(),
+                  details: JSON.stringify({ page_id: pageId, block_id: blockId, checkbox_value: checkboxValue }), // Include block_id in details
+                },
+              ]);
+
+              if (error) {
+                console.error('Error logging new checkbox event:', error);
+              } else {
+                console.log('New checkbox event logged with user ID:', userIdForEvent);
+              }
+            } else {
+              console.log('Matching event found, no new event logged.');
+            }
           }
         }
       }
@@ -125,7 +171,5 @@ async function trackNotionPages() {
   }
 }
 
-// Poll every 10 seconds
-setInterval(trackNotionPages, 10000);
-
-serve(() => new Response('Server is running and polling Notion pages', { status: 200 }));
+// Execute the function immediately when triggered
+trackNotionPages();

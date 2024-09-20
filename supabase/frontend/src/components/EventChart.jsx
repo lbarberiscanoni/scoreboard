@@ -27,15 +27,13 @@ const EventChart = () => {
 
       try {
         // Fetch organization details based on URL parameter
+        console.log('Fetching organization with name:', organization);
         const { data: orgData, error: orgError } = await supabase
           .from('organizations')
           .select('id')
           .eq('name', organization)
           .single();
-
-        if (orgError || !orgData) {
-          throw new Error('Organization not found or error fetching organization data');
-        }
+        console.log('Fetched organization data:', orgData, 'Error:', orgError);
 
         const orgId = orgData.id;
 

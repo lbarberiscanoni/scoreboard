@@ -71,7 +71,7 @@ serve({
       .from('users')
       .select('id, org_id')
       .eq('github_username', commitUserName);
-
+    
     if (usersError || !usersData || usersData.length === 0) {
       console.error('User not found or error fetching user data:', usersError || 'No user found');
       return new Response('User not found or error fetching user data', { status: 404 });
@@ -99,8 +99,6 @@ serve({
     }
 
     try {
-      console.log('Received payload:', payload);
-
       // Fetch input_type_id for "code"
       const { data: inputTypeData, error: inputTypeError } = await supabase
         .from('input_types')

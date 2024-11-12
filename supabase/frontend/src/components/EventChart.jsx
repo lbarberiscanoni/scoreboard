@@ -19,6 +19,27 @@ const EventChart = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Define input type labels for title and x-axis
+  const inputTypeLabels = {
+    code: {
+      title: "Time Between Commits",
+      xAxis: "Commit #",
+    },
+    email: {
+      title: "Time Between Emails Sent",
+      xAxis: "Email #",
+    },
+    notion: {
+      title: "Time Between Notion Checkboxes Checked",
+      xAxis: "Checkbox #",
+    },
+  };
+
+  const selectedLabels = inputTypeLabels[inputType] || {
+    title: "Event Chart",
+    xAxis: "Event #",
+  };
+
   // Memoized fetching of data
   const fetchData = useMemo(() => {
     return async () => {
@@ -58,12 +79,17 @@ const EventChart = () => {
 
         if (userError) throw userError;
 
+        // Calculate the date 60 days ago
+        const sixtyDaysAgo = new Date();
+        sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
         // Fetch events based on the organization ID and input type ID
         const { data: events, error: eventError } = await supabase
           .from('events')
           .select('*')
           .eq('org_id', orgId)
           .eq('input_type_id', inputTypeId)
+          .gte('timestamp', sixtyDaysAgo.toISOString()) // Filter by timestamp
           .order('timestamp', { ascending: true });
 
         if (eventError) throw eventError;
@@ -151,7 +177,7 @@ const EventChart = () => {
 
   return (
     <div style={{ width: '100%', maxWidth: '1000px', margin: 'auto' }}>
-      <h2>Time Between Commits</h2>
+      <h2>{selectedLabels.title}</h2>
       {loading ? (
         <p>Loading chart data...</p>
       ) : error ? (
@@ -167,7 +193,7 @@ const EventChart = () => {
                 x: {
                   title: {
                     display: true,
-                    text: 'Commit #',
+                    text: selectedLabels.xAxis,
                   },
                   max: maxCommits + 10, // Set the maximum value to the max commits + 10
                 },

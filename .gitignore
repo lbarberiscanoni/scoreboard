@@ -5,3 +5,4 @@ config.toml
 *.sql
 .vscode/
 deno.lock
+.vercel

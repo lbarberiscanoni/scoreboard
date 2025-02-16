@@ -18,7 +18,7 @@ const Cal = () => {
     setError(null);
 
     try {
-      const response = await fetch('http://localhost:3001/api/calendar/fetch', {
+      const response = await fetch('/api/caldav', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

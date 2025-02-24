@@ -1,3 +1,9 @@
+## Feb 24th 2025
+
+- I need to fix the bug that prevents the whole function from running
+    - Sonnet3.7 says the same thing GPT was saying: the Notion SDK version is conflicting with Deno
+    - Sonnet rewrote it making a call directly to the Notion API and this seems to work 
+
 ## Feb 18th 2025
 
 - The key thing today is just to write out how I do the testing

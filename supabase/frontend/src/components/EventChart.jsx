@@ -56,6 +56,10 @@ const EventChart = () => {
           .single();
         console.log('Fetched organization data:', orgData, 'Error:', orgError);
 
+        if (orgError || !orgData) {
+          throw new Error('Organization not found or error fetching organization');
+        }
+
         const orgId = orgData.id;
 
         // Fetch input type ID based on inputType URL parameter
@@ -82,6 +86,10 @@ const EventChart = () => {
         // Calculate the date 60 days ago
         const sixtyDaysAgo = new Date();
         sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+        
+        // Calculate the date 7 days ago for recent activity
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
         // Fetch events based on the organization ID and input type ID
         const { data: events, error: eventError } = await supabase
@@ -108,11 +116,21 @@ const EventChart = () => {
           }, {});
 
           const userCommitCounts = {};
+          const userRecentCommitCounts = {};
+          
           const colorMap = generateColors(Object.keys(groupedByUser).length);
           const datasets = Object.keys(groupedByUser).map((userId, index) => {
             const userEvents = groupedByUser[userId];
             const data = [];
             let prevTimestamp = null;
+
+            // Count total commits
+            userCommitCounts[userId] = userEvents.length;
+            
+            // Count recent commits (last 7 days)
+            userRecentCommitCounts[userId] = userEvents.filter(event => 
+              new Date(event.timestamp) >= sevenDaysAgo
+            ).length;
 
             userEvents.forEach((event) => {
               if (prevTimestamp) {
@@ -124,10 +142,12 @@ const EventChart = () => {
               prevTimestamp = event.timestamp;
             });
 
-            userCommitCounts[userId] = userEvents.length;
+            const recentCommitDisplay = userRecentCommitCounts[userId] > 0 
+              ? ` +${userRecentCommitCounts[userId]}` 
+              : '';
 
             return {
-              label: `${userMap[userId] || `User ${userId}`} (${userCommitCounts[userId]})`,
+              label: `${userMap[userId] || `User ${userId}`} (${userCommitCounts[userId]})${recentCommitDisplay}`,
               data,
               fill: false,
               borderColor: colorMap[index],
@@ -214,6 +234,16 @@ const EventChart = () => {
                     pointStyle: 'circle',
                   },
                 },
+                tooltip: {
+                  callbacks: {
+                    title: function(tooltipItems) {
+                      return `${selectedLabels.xAxis.replace(' #', '')} ${tooltipItems[0].label}`;
+                    },
+                    label: function(context) {
+                      return `${context.dataset.label}: ${context.raw.toFixed(2)} days`;
+                    }
+                  }
+                }
               },
             }}
           />

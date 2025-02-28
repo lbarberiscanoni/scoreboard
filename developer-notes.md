@@ -1,8 +1,14 @@
+## Feb 28th 2025
+
+Ok now the scoreboard displays the # of commmits or checkboxes in the last week 
+
 ## Feb 24th 2025
 
 - I need to fix the bug that prevents the whole function from running
     - Sonnet3.7 says the same thing GPT was saying: the Notion SDK version is conflicting with Deno
     - Sonnet rewrote it making a call directly to the Notion API and this seems to work 
+- ok wow whatever it was it just worked!! 
+    - I tested it with Mit and now the scoreboard tracks everyone! 
 
 ## Feb 18th 2025
 

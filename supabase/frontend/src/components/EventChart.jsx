@@ -35,7 +35,7 @@ function getLastThursday() {
 }
 
 const EventChart = () => {
-  const { organization, inputType } = useParams(); // Get organization and inputType from URL parameters
+  const { organization, inputType } = useParams();
   const [chartData, setChartData] = useState({
     labels: [],
     datasets: [],
@@ -69,6 +69,21 @@ const EventChart = () => {
     xAxis: "Event #",
   };
 
+  // Helper function to find user across organizations
+  const findUserAcrossOrgs = async (userId) => {
+    const { data: userCrossOrg, error } = await supabase
+      .from('users')
+      .select('id, name, github_username, org_id')
+      .eq('id', userId);
+
+    if (error || !userCrossOrg || userCrossOrg.length === 0) {
+      console.warn(`User ${userId} not found in any organization`);
+      return null;
+    }
+
+    return userCrossOrg[0];
+  };
+
   // Fetch data when organization or inputType changes
   useEffect(() => {
     const fetchData = async () => {
@@ -76,13 +91,12 @@ const EventChart = () => {
       setError(null);
       try {
         // Fetch organization details based on URL parameter
-        console.log('Fetching organization with name:', organization);
         const { data: orgData, error: orgError } = await supabase
           .from('organizations')
           .select('id')
           .eq('name', organization)
           .single();
-        console.log('Fetched organization data:', orgData, 'Error:', orgError);
+
         if (orgError || !orgData) {
           throw new Error('Organization not found or error fetching organization');
         }
@@ -115,24 +129,6 @@ const EventChart = () => {
           inputTypeId = matchedType.id;
         }
 
-        // Fetch users associated with the organization
-        console.log('Fetching users for organization:', orgId);
-        const { data: users, error: userError } = await supabase
-          .from('users')
-          .select('id, name, github_username')  // Added github_username to the query
-          .eq('org_id', orgId);
-        
-        if (userError) {
-          console.error('Error fetching users:', userError);
-          throw userError;
-        }
-        
-        console.log('Fetched users:', users);
-
-        // Calculate the cutoff date as last Thursday
-        const lastThursday = getLastThursday();
-        console.log('Using last Thursday as cutoff:', lastThursday);
-
         // Fetch events based on the organization ID and input type ID (last 60 days)
         const sixtyDaysAgo = new Date();
         sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
@@ -150,28 +146,39 @@ const EventChart = () => {
           eventsQuery = eventsQuery.eq('input_type_id', inputTypeId);
         }
         
-        console.log('Fetching events for organization:', orgId);
         const { data: events, error: eventError } = await eventsQuery;
         
         if (eventError) {
           console.error('Error fetching events:', eventError);
           throw eventError;
         }
-        
-        console.log(`Fetched ${events?.length || 0} events`);
 
         if (events && events.length > 0) {
-          // Build an enhanced map from user ID to name and GitHub username
-          console.log('Building user map with github usernames');
-          const userMap = users.reduce((map, user) => {
-            map[user.id] = {
-              name: user.name || `User ${user.id}`,
-              github: user.github_username || null
-            };
-            return map;
-          }, {});
-          
-          console.log('User map:', userMap);
+          // Extended user mapping to handle cross-organization users
+          const userMap = {};
+          for (const event of events) {
+            const userId = event.user_id;
+            
+            // If user not in map, try to find across organizations
+            if (!userMap[userId]) {
+              const crossOrgUser = await findUserAcrossOrgs(userId);
+              
+              if (crossOrgUser) {
+                userMap[userId] = {
+                  name: crossOrgUser.name || `User ${userId}`,
+                  github: crossOrgUser.github_username || null,
+                  org_id: crossOrgUser.org_id
+                };
+              } else {
+                // Fallback if no user found
+                userMap[userId] = {
+                  name: `User ${userId}`,
+                  github: null,
+                  org_id: null
+                };
+              }
+            }
+          }
 
           // Group events by user
           const groupedByUser = events.reduce((acc, event) => {
@@ -180,16 +187,10 @@ const EventChart = () => {
             acc[userId].push(event);
             return acc;
           }, {});
-          
-          console.log('Users with events:', Object.keys(groupedByUser));
-          console.log('Event counts per user:', Object.keys(groupedByUser).map(id => ({
-            userId: id, 
-            count: groupedByUser[id].length,
-            userInfo: userMap[id] || 'Not found in userMap'
-          })));
 
           const userEventCounts = {};
           const userRecentEventCounts = {};
+          const lastThursday = getLastThursday();
 
           const colorMap = generateColors(Object.keys(groupedByUser).length);
           const datasets = Object.keys(groupedByUser).map((userId, index) => {
@@ -219,27 +220,14 @@ const EventChart = () => {
               ? ` +${userRecentEventCounts[userId]}` 
               : '';
 
-            // Create a better display name that includes GitHub username when available
             const userInfo = userMap[userId];
             
-            console.log(`Building label for user ${userId}:`, userInfo);
-            
-            // Check if user exists in the userMap
-            let displayName;
-            if (!userInfo) {
-              console.warn(`User ${userId} not found in userMap!`);
-              displayName = `User ${userId}`;
-            } else {
-              // Create display name with GitHub username if available
-              displayName = userInfo.github 
-                ? `${userInfo.name} (${userInfo.github})` 
-                : userInfo.name;
-              
-              console.log(`Created display name: "${displayName}" for user ${userId}`);
-            }
+            // Create display name with GitHub username if available
+            const displayName = userInfo.github 
+              ? `${userInfo.name} (${userInfo.github})` 
+              : userInfo.name;
 
             const label = `${displayName} (${userEventCounts[userId]})${recentEventsDisplay}`;
-            console.log(`Final label for chart: "${label}"`);
             
             return {
               label,
@@ -255,8 +243,6 @@ const EventChart = () => {
           // Sort datasets by the number of events
           const sortedDatasets = datasets.sort((a, b) => b.data.length - a.data.length);
           const eventNumbers = events.map((_, index) => `${index + 1}`);
-
-          console.log('Final datasets for chart:', sortedDatasets.map(d => d.label));
           
           setChartData({
             labels: eventNumbers,

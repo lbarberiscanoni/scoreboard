@@ -16,8 +16,24 @@
     - `supabase functions deploy notion-tracker` is the command
 
 - then code + notion = "touch-points" 
+    - ok this worked! 
+    - let's take a moment to back-populate the data 
+
+- I kind would like it if when I add a new repo to be tracked on Supabase, we automatically pull all the commits from that repo and log them into our Events. 
+    - The main component is the github-import edge function that:
+        - Takes a repository name and organization ID as input
+        - Fetches up to 300 commits (3 pages) from the GitHub API
+        - Filters to include only commits from the last 60 days to match your frontend view
+        - Checks for users with matching GitHub usernames in your database
+        - Adds the commits as events in your database, avoiding duplicates
+        - Returns a summary of how many commits were imported
+    - jk, let's just trigger the pull of the commit history once github-tracker receivess the first webhook event
 
 - we also need to figure out why Supabase "usage" limits are happening
+
+- let's add instructions to the read me
+    - [ ] how to add Notion pages
+    - [ ] how to add Github repos
 
 ## Feb 28th 2025
 

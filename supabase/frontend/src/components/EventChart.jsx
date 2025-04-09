@@ -42,8 +42,9 @@ const EventChart = () => {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [inputTypesMap, setInputTypesMap] = useState({});
 
-  // Define input type labels for title and x-axis
+  // Define chart labels based on input type
   const inputTypeLabels = {
     code: {
       title: "Time Between Commits",
@@ -57,6 +58,10 @@ const EventChart = () => {
       title: "Time Between Notion Checkboxes Checked",
       xAxis: "Checkbox #",
     },
+    all: {
+      title: "Touch Points (Combined Events)",
+      xAxis: "Event #",
+    }
   };
 
   const selectedLabels = inputTypeLabels[inputType] || {
@@ -83,16 +88,32 @@ const EventChart = () => {
         }
         const orgId = orgData.id;
 
-        // Fetch input type ID based on inputType URL parameter
-        const { data: inputTypeData, error: inputTypeError } = await supabase
+        // Fetch all input types and create a map
+        const { data: inputTypes, error: inputTypeError } = await supabase
           .from('input_types')
-          .select('id')
-          .eq('name', inputType)
-          .single();
-        if (inputTypeError || !inputTypeData) {
-          throw new Error('Input type not found or error fetching input type');
+          .select('id, name');
+        
+        if (inputTypeError) {
+          throw new Error('Error fetching input types');
         }
-        const inputTypeId = inputTypeData.id;
+        
+        // Create a map of input type ids to names
+        const typesMap = inputTypes.reduce((map, type) => {
+          map[type.id] = type.name;
+          return map;
+        }, {});
+        
+        setInputTypesMap(typesMap);
+
+        // If inputType is not 'all', filter by the specific input type
+        let inputTypeId = null;
+        if (inputType !== 'all') {
+          const matchedType = inputTypes.find(type => type.name === inputType);
+          if (!matchedType) {
+            throw new Error(`Input type '${inputType}' not found`);
+          }
+          inputTypeId = matchedType.id;
+        }
 
         // Fetch users associated with the organization
         const { data: users, error: userError } = await supabase
@@ -108,13 +129,21 @@ const EventChart = () => {
         // Fetch events based on the organization ID and input type ID (last 60 days)
         const sixtyDaysAgo = new Date();
         sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-        const { data: events, error: eventError } = await supabase
+        
+        // Build the query based on whether we're filtering by input type or not
+        let eventsQuery = supabase
           .from('events')
           .select('*')
           .eq('org_id', orgId)
-          .eq('input_type_id', inputTypeId)
           .gte('timestamp', sixtyDaysAgo.toISOString())
           .order('timestamp', { ascending: true });
+          
+        // Only add the input type filter if not 'all'
+        if (inputType !== 'all' && inputTypeId !== null) {
+          eventsQuery = eventsQuery.eq('input_type_id', inputTypeId);
+        }
+        
+        const { data: events, error: eventError } = await eventsQuery;
         if (eventError) throw eventError;
 
         if (events && events.length > 0) {
@@ -132,8 +161,8 @@ const EventChart = () => {
             return acc;
           }, {});
 
-          const userCommitCounts = {};
-          const userRecentCommitCounts = {};
+          const userEventCounts = {};
+          const userRecentEventCounts = {};
 
           const colorMap = generateColors(Object.keys(groupedByUser).length);
           const datasets = Object.keys(groupedByUser).map((userId, index) => {
@@ -141,10 +170,10 @@ const EventChart = () => {
             const data = [];
             let prevTimestamp = null;
 
-            // Total commits count
-            userCommitCounts[userId] = userEvents.length;
-            // Count recent commits since last Thursday
-            userRecentCommitCounts[userId] = userEvents.filter(event => 
+            // Total events count
+            userEventCounts[userId] = userEvents.length;
+            // Count recent events since last Thursday
+            userRecentEventCounts[userId] = userEvents.filter(event => 
               new Date(event.timestamp) >= lastThursday
             ).length;
 
@@ -159,12 +188,12 @@ const EventChart = () => {
               prevTimestamp = event.timestamp;
             });
 
-            const recentCommitDisplay = userRecentCommitCounts[userId] > 0 
-              ? ` +${userRecentCommitCounts[userId]}` 
+            const recentEventsDisplay = userRecentEventCounts[userId] > 0 
+              ? ` +${userRecentEventCounts[userId]}` 
               : '';
 
             return {
-              label: `${userMap[userId] || `User ${userId}`} (${userCommitCounts[userId]})${recentCommitDisplay}`,
+              label: `${userMap[userId] || `User ${userId}`} (${userEventCounts[userId]})${recentEventsDisplay}`,
               data,
               fill: false,
               borderColor: colorMap[index],
@@ -176,10 +205,10 @@ const EventChart = () => {
 
           // Sort datasets by the number of events
           const sortedDatasets = datasets.sort((a, b) => b.data.length - a.data.length);
-          const commitNumbers = events.map((_, index) => `${index + 1}`);
+          const eventNumbers = events.map((_, index) => `${index + 1}`);
 
           setChartData({
-            labels: commitNumbers,
+            labels: eventNumbers,
             datasets: sortedDatasets,
           });
         } else {
@@ -206,10 +235,10 @@ const EventChart = () => {
     return colors;
   };
 
-  // Calculate max commit number for x-axis scaling
-  const maxCommits = chartData.datasets.reduce((max, dataset) => {
-    const commitCount = dataset.data.length;
-    return commitCount > max ? commitCount : max;
+  // Calculate max event number for x-axis scaling
+  const maxEvents = chartData.datasets.reduce((max, dataset) => {
+    const eventCount = dataset.data.length;
+    return eventCount > max ? eventCount : max;
   }, 0);
 
   return (
@@ -232,7 +261,7 @@ const EventChart = () => {
                     display: true,
                     text: selectedLabels.xAxis,
                   },
-                  max: maxCommits + 10,
+                  max: maxEvents + 10,
                 },
                 y: {
                   title: {

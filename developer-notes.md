@@ -1,3 +1,12 @@
+## Apr 8th 2025
+
+- ok the focus for today is figuring out why Cassandra isn't tracking
+    - let's give it to Claude so that it's up to date in understanding the lates version of the codebase
+
+- then code + notion = "touch-points" 
+
+- we also need to figure out why Supabase "usage" limits are happening
+
 ## Feb 28th 2025
 
 Ok now the scoreboard displays the # of commmits or checkboxes in the last week 

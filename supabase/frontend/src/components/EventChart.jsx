@@ -59,7 +59,7 @@ const EventChart = () => {
       xAxis: "Checkbox #",
     },
     all: {
-      title: "Touch Points (Combined Events)",
+      title: "Time Between Touch Points",
       xAxis: "Event #",
     }
   };

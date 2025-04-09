@@ -2,6 +2,18 @@
 
 - ok the focus for today is figuring out why Cassandra isn't tracking
     - let's give it to Claude so that it's up to date in understanding the lates version of the codebase
+    - ok actually it seems to work on the Scoreboard page I just setup
+        - except it's over-writing too many events
+            - ok it appeasr to be fixed with the original page I tested with 
+
+- let's test it with another page
+    - unforutnatley I can only test wiht my own account, so I need somebody else to try it at the next meeting lol 
+    - initially it didn't track this because I forgot to add the Snapshot logger
+        - interestingly enough it seems that it tracks even the pages inside it
+            - worth testing later because it would simplify things a great deal because I can just create 1 page to track all ToDos and it's all done with subpages for each person 
+
+- I forgot how to deploy it
+    - `supabase functions deploy notion-tracker` is the command
 
 - then code + notion = "touch-points" 
 

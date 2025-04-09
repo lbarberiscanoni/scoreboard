@@ -72,7 +72,7 @@ async function trackNotionPages() {
       // Fetch Notion API key for the organization
       const { data: orgData, error: orgError } = await supabase
         .from('organizations')
-        .select('notion_api_key')
+        .select('notion_api_key, name')
         .eq('id', orgId)
         .single();
 
@@ -82,21 +82,21 @@ async function trackNotionPages() {
       }
 
       const notionApiKey = orgData.notion_api_key;
+      const orgName = orgData.name;
       if (!notionApiKey) {
-        console.error(`No Notion API key found for organization ID ${orgId}`);
+        console.error(`No Notion API key found for organization ID ${orgId} (${orgName})`);
         continue;
       }
 
-      console.log("Attempting to list children for pageId:", pageId);
+      console.log(`Processing page ${pageId} for organization ${orgName} (ID: ${orgId})`);
 
       try {
         // Direct API call to get block children
         const response = await notionRequest(`/blocks/${pageId}/children`, { method: 'GET' }, notionApiKey);
-        console.log("Response from blocks.children.list:", JSON.stringify(response, null, 2));
         
         const blocks = response.results;
         const checkboxBlocks = blocks.filter((block) => block.type === 'to_do');
-        console.log("Checkbox Blocks:", checkboxBlocks);
+        console.log(`Found ${checkboxBlocks.length} checkbox blocks for page ${pageId}`);
 
         for (const checkboxBlock of checkboxBlocks) {
           // The structure may be different with direct API
@@ -107,6 +107,8 @@ async function trackNotionPages() {
           if (!checkboxValue) {
             continue;
           }
+
+          console.log(`Processing checked checkbox block: ${blockId}`);
 
           // Extract the user ID from block metadata
           const userId = checkboxBlock.last_edited_by?.id || checkboxBlock.created_by?.id;
@@ -143,55 +145,95 @@ async function trackNotionPages() {
               userIdForEvent = userData.id;
             }
 
-            // Fetch all events without any filters to debug data structure
-            const { data: allEvents, error: allEventsError } = await supabase
+            // First, check specifically for this block_id in existing events
+            const { data: blockEvents, error: blockEventsError } = await supabase
               .from('events')
-              .select('details');
-
-            if (allEventsError) {
-              console.error('Error fetching all events:', allEventsError);
-            } else {
-              // Filter out events with null details
-              const validEvents = allEvents.filter(event => event.details !== null);
-
-              // Check if there is a matching event with the same block_id
-              const matchingEvent = validEvents.find(event => {
+              .select('id, details')
+              .eq('input_type_id', 1) // Assuming 1 is for Notion
+              .eq('org_id', orgId);
+              
+            if (blockEventsError) {
+              console.error('Error fetching block events:', blockEventsError);
+              continue;
+            }
+            
+            // Check if this specific block_id already exists in any event
+            let isDuplicate = false;
+            
+            if (blockEvents && blockEvents.length > 0) {
+              for (const event of blockEvents) {
                 try {
-                  const details = JSON.parse(event.details);
-                  return details.block_id === blockId;
+                  // First check if event.details exists and isn't null
+                  if (!event.details) {
+                    continue; // Skip this event if details is null
+                  }
+                  
+                  const details = typeof event.details === 'string' 
+                    ? JSON.parse(event.details) 
+                    : event.details;
+                    
+                  // Check if details object and block_id property exist before comparing
+                  if (details && details.block_id && details.block_id === blockId) {
+                    console.log(`Found duplicate event for block_id: ${blockId} (Event ID: ${event.id})`);
+                    isDuplicate = true;
+                    break;
+                  }
                 } catch (e) {
                   console.error('Error parsing event details:', e);
-                  return false;
+                  // Continue to next event if we can't parse this one
+                  continue;
                 }
-              });
-
-              if (!matchingEvent) {
-                console.log('No matching event found. Logging the current state.');
-                // No previous event found, log this as a new event
-                const { data, error } = await supabase
-                  .from('events')
-                  .insert([
-                    {
-                      org_id: orgId,
-                      user_id: userIdForEvent,
-                      input_type_id: 1, // Assuming 1 is the id for 'Notion'
-                      timestamp: new Date().toISOString(),
-                      details: JSON.stringify({
-                        page_id: pageId,
-                        block_id: blockId,
-                        checkbox_value: checkboxValue
-                      }),
-                    },
-                  ]);
-
-                if (error) {
-                  console.error('Error logging new checkbox event:', error);
-                } else {
-                  console.log('New checkbox event logged with user ID:', userIdForEvent);
-                }
-              } else {
-                console.log('Matching event found, no new event logged.');
               }
+            }
+            
+            // Also check for very recent events from this user as a safeguard
+            if (!isDuplicate) {
+              // Only check for recent events if no exact block_id match found
+              const twoMinutesAgo = new Date();
+              twoMinutesAgo.setMinutes(twoMinutesAgo.getMinutes() - 2);
+              
+              const { data: recentEvents, error: recentEventsError } = await supabase
+                .from('events')
+                .select('id')
+                .eq('input_type_id', 1)
+                .eq('org_id', orgId)
+                .eq('user_id', userIdForEvent)
+                .gte('timestamp', twoMinutesAgo.toISOString());
+                
+              if (recentEventsError) {
+                console.error('Error fetching recent events:', recentEventsError);
+              } else if (recentEvents && recentEvents.length > 0) {
+                console.log(`Found ${recentEvents.length} recent events, skipping to prevent potential duplicate`);
+                isDuplicate = true;
+              }
+            }
+
+            // Only insert if not a duplicate
+            if (!isDuplicate) {
+              console.log(`No duplicate found for block_id: ${blockId}, inserting new event`);
+              const { data, error } = await supabase
+                .from('events')
+                .insert([
+                  {
+                    org_id: orgId,
+                    user_id: userIdForEvent,
+                    input_type_id: 1, // Assuming 1 is the id for 'Notion'
+                    timestamp: new Date().toISOString(),
+                    details: JSON.stringify({
+                      page_id: pageId,
+                      block_id: blockId,
+                      checkbox_value: checkboxValue
+                    }),
+                  },
+                ]);
+
+              if (error) {
+                console.error('Error logging new checkbox event:', error);
+              } else {
+                console.log('New checkbox event logged with user ID:', userIdForEvent);
+              }
+            } else {
+              console.log('Duplicate event detected, skipping insertion');
             }
           }
         }

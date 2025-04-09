@@ -8,9 +8,38 @@ We also have an initial schema that will help us track all of the Events for the
 
 ## Roadmap
 
-- [ ] Line Chart
-    - [ ] Cassandra Code Chart
-    - [ ] Cassandra Documentation Chart
+- [ ] Test the Notion logger with subpage
+- [ ] Try MCP server options for notion-tracker
+- [ ] Figure out a way to lower the polling frequency of notion-tracker
+
+## How to Track 
+
+**Always start by tracking `Users`**
+
+**Notion Pages**
+   1. Go to the Notion page
+   2. Click on "..." and "Connections" 
+   3. Select "Page Snapshot Logger" for Cassandra or "Checkbox Tracker" for Valyria
+   4. Extract the page-id from the url 
+      - Ex. "https://www.notion.so/Ellis-App-9100b5ccf216442db8e321e27af31e63" = "9100b5ccf216442db8e321e27af31e63"
+   5. Go to `notion_pages` 
+   6. Insert a new row
+      - select the appropriate `org_id` (Cassandra is 1 and Valyria is 2)
+      - put the page-id in `page_id`
+      - click "Save"
+
+**Github Repos**
+   1. Go to `repositories` on Supabase 
+   2. Add the repo's path (Ex. Cassandra-Labs/core) to `repo_name`
+   3. Go to Github and setup a webhook
+      - Go to "Settings" and "Webhooks" 
+      - Click "Add Webhook"
+      - Change "Payload URL" to the Edge Function endpoint
+      - Change "Content type" to "application/json"
+      - Create a "Secret" 
+   4. Put the secret in `webhook_secret`
+   5. Click "Save" on Supabase to insert the repo to the table
+   6. Click "Add Webhook" on the Github repo 
 
 
 ## Documentation

@@ -30,10 +30,11 @@
     - jk, let's just trigger the pull of the commit history once github-tracker receivess the first webhook event
 
 - we also need to figure out why Supabase "usage" limits are happening
+    - ok let's figure this out
+    - ok so it appears it's caused by how frequently the cron job is calling notion-tracker
 
 - let's add instructions to the read me
-    - [ ] how to add Notion pages
-    - [ ] how to add Github repos
+    - done
 
 ## Feb 28th 2025
 

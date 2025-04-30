@@ -19,6 +19,7 @@
     - interesting: we can setup "constraints" on Supabase 
 
 - after that, we need to checkup on Joel and then we gotta create a special logic for me since I show up on both Valyria and Cassandra
+    - ok Joel shows up
 
 - after that we want to check why Notion tracking is not working for Cassandra
 

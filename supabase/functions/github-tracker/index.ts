@@ -136,8 +136,7 @@ async function fetchHistoricalCommits(
         .eq('org_id', orgId)
         .eq('user_id', userToUse.id)
         .eq('input_type_id', inputTypeId)
-        .eq('timestamp', commitTime)
-        .eq('details', eventDetails);
+        .filter('details->>sha', 'eq', commitSha);
 
       if (existingError) {
         console.error(`Error checking for existing event with SHA ${commitSha} for user ${userToUse.id} in org ${orgId}:`, existingError);
@@ -249,14 +248,14 @@ serve({
 
     try {
       // Fetch input_type_id for "code"
-      const { data: inputTypeData, error: syncError } = await supabase
+      const { data: inputTypeData, error: inputTypeError } = await supabase
         .from('input_types')
         .select('id')
         .eq('name', 'code')
         .maybeSingle();
 
-      if (syncError || !inputTypeData) {
-        console.error('Error fetching input type for code:', syncError || 'No input type found');
+      if (inputTypeError || !inputTypeData) {
+        console.error('Error fetching input type for code:', inputTypeError || 'No input type found');
         return new Response('Error fetching input type for code', { status: 500 });
       }
 
@@ -338,8 +337,7 @@ serve({
             .eq('org_id', orgId)
             .eq('user_id', userToUse.id)
             .eq('input_type_id', inputTypeId)
-            .eq('timestamp', commitTime)
-            .eq('details', eventDetails);
+            .filter('details->>sha', 'eq', commitSha);
 
           if (existingError) {
             console.error(`Error checking for existing event with SHA ${commitSha} for user ${userToUse.id} in org ${orgId}:`, existingError);
@@ -364,9 +362,9 @@ serve({
             ]);
 
           if (error) {
-            console.error('Error saving commit data to Supabase for user ${userToUse.id} in org ${orgId}:', error);
+            console.error(`Error saving commit ${commitSha} to database for user ${userToUse.id} in org ${orgId}:`, error);
           } else {
-            console.log(`Commit data saved to Supabase successfully for user ${userToUse.id} in org ${orgId}.`);
+            console.log(`Commit ${commitSha} saved to Supabase successfully for user ${userToUse.id} in org ${orgId}.`);
           }
         }
       }

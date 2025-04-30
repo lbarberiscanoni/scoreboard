@@ -1,3 +1,19 @@
+## Apr 29th 2025
+
+- I removed "checkForJoelsData" function
+
+- ok I'm having Grok simplify the code more
+    - for example, I removed the conditional checking of input types because either we filter by a single input type or we get all events if the url says "all"
+
+- the SQL query and the console logging seems to confirm that for some reason the Supabase client is not getting events past April 10th
+
+- Grok just suggested an interesting idea: let's fetch only the last 99 events within the last 60 days
+    - maybe the issue is that the duplication is overloading the query
+    - OMG that worked! 
+
+- ok I removed the duplicates with SQL
+    - we also implemented pagination on EventChart so that we fetch in batches of 1000
+
 ## Apr 8th 2025
 
 - ok the focus for today is figuring out why Cassandra isn't tracking

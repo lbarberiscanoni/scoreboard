@@ -116,25 +116,39 @@ async function fetchHistoricalCommits(
         continue;
       }
 
-      // Check if this commit is already in the database to avoid duplicates
-      const { data: existingEvents, error: existingError } = await supabase
-        .from('events')
-        .select('id')
-        .eq('org_id', orgId)
-        .eq('input_type_id', inputTypeId)
-        .filter('details->sha', 'eq', commitSha);
-
-      if (!existingError && existingEvents && existingEvents.length > 0) {
-        console.log(`Commit ${commitSha} already exists in database, skipping`);
-        continue;
-      }
-
       // Find the user that matches the repository organization
       const orgUser = allUsersData.find(user => user.org_id === orgId);
       
       // If no user matches the repository organization, find a user in any organization
       const userToUse = orgUser || allUsersData[0];
-      
+
+      const eventDetails = {
+        repo_id: repoId,
+        commit_message: commitMessage,
+        sha: commitSha,
+        cross_org: orgUser ? false : true // Flag if this is a cross-organization commit
+      };
+
+      // Check if this event is already in the database to avoid duplicates
+      const { data: existingEvents, error: existingError } = await supabase
+        .from('events')
+        .select('id')
+        .eq('org_id', orgId)
+        .eq('user_id', userToUse.id)
+        .eq('input_type_id', inputTypeId)
+        .eq('timestamp', commitTime)
+        .eq('details', eventDetails);
+
+      if (existingError) {
+        console.error(`Error checking for existing event with SHA ${commitSha} for user ${userToUse.id} in org ${orgId}:`, existingError);
+        continue;
+      }
+
+      if (existingEvents && existingEvents.length > 0) {
+        console.log(`Event with SHA ${commitSha} for user ${userToUse.id} in org ${orgId} already exists (historical fetch), skipping`);
+        continue;
+      }
+
       // Log event using the selected user
       const { error } = await supabase
         .from('events')
@@ -144,20 +158,15 @@ async function fetchHistoricalCommits(
             user_id: userToUse.id,
             input_type_id: inputTypeId,
             timestamp: commitTime,
-            details: JSON.stringify({
-              repo_id: repoId,
-              commit_message: commitMessage,
-              sha: commitSha,
-              cross_org: orgUser ? false : true // Flag if this is a cross-organization commit
-            }),
+            details: eventDetails,
           },
         ]);
 
       if (error) {
-        console.error(`Error saving commit ${commitSha} to database:`, error);
+        console.error(`Error saving commit ${commitSha} to database for user ${userToUse.id} in org ${orgId}:`, error);
       } else {
         importCount++;
-        console.log(`Imported historical commit ${commitSha} for user ${userToUse.id}`);
+        console.log(`Imported historical commit ${commitSha} for user ${userToUse.id} in org ${orgId}`);
       }
     }
 
@@ -240,14 +249,14 @@ serve({
 
     try {
       // Fetch input_type_id for "code"
-      const { data: inputTypeData, error: inputTypeError } = await supabase
+      const { data: inputTypeData, error: syncError } = await supabase
         .from('input_types')
         .select('id')
         .eq('name', 'code')
         .maybeSingle();
 
-      if (inputTypeError || !inputTypeData) {
-        console.error('Error fetching input type for code:', inputTypeError || 'No input type found');
+      if (syncError || !inputTypeData) {
+        console.error('Error fetching input type for code:', syncError || 'No input type found');
         return new Response('Error fetching input type for code', { status: 500 });
       }
 
@@ -313,6 +322,34 @@ serve({
         for (const commit of commits) {
           const commitTime = new Date(commit.timestamp).toISOString();
           const commitMessage = commit.message;
+          const commitSha = commit.id;
+
+          const eventDetails = {
+            repo_id: repoId,
+            commit_message: commitMessage,
+            sha: commitSha,
+            cross_org: orgUser ? false : true // Flag if this is a cross-organization commit
+          };
+
+          // Check if this event is already in the database to avoid duplicates
+          const { data: existingEvents, error: existingError } = await supabase
+            .from('events')
+            .select('id')
+            .eq('org_id', orgId)
+            .eq('user_id', userToUse.id)
+            .eq('input_type_id', inputTypeId)
+            .eq('timestamp', commitTime)
+            .eq('details', eventDetails);
+
+          if (existingError) {
+            console.error(`Error checking for existing event with SHA ${commitSha} for user ${userToUse.id} in org ${orgId}:`, existingError);
+            continue;
+          }
+
+          if (existingEvents && existingEvents.length > 0) {
+            console.log(`Event with SHA ${commitSha} for user ${userToUse.id} in org ${orgId} already exists (webhook), skipping`);
+            continue;
+          }
 
           const { error } = await supabase
             .from('events')
@@ -322,19 +359,14 @@ serve({
                 user_id: userToUse.id,
                 input_type_id: inputTypeId,
                 timestamp: commitTime,
-                details: JSON.stringify({
-                  repo_id: repoId,
-                  commit_message: commitMessage,
-                  sha: commit.id,
-                  cross_org: orgUser ? false : true // Flag if this is a cross-organization commit
-                }),
+                details: eventDetails,
               },
             ]);
 
           if (error) {
-            console.error('Error saving commit data to Supabase:', error);
+            console.error('Error saving commit data to Supabase for user ${userToUse.id} in org ${orgId}:', error);
           } else {
-            console.log(`Commit data saved to Supabase successfully for user ${userToUse.id}.`);
+            console.log(`Commit data saved to Supabase successfully for user ${userToUse.id} in org ${orgId}.`);
           }
         }
       }

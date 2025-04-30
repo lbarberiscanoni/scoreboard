@@ -14,6 +14,14 @@
 - ok I removed the duplicates with SQL
     - we also implemented pagination on EventChart so that we fetch in batches of 1000
 
+- ok the next step is to fix github-tracker to avoid duplication 
+    - initially Grok was trying to turn "sha" into its own column but nah, that only works for code and not other type of inputs
+    - interesting: we can setup "constraints" on Supabase 
+
+- after that, we need to checkup on Joel and then we gotta create a special logic for me since I show up on both Valyria and Cassandra
+
+- after that we want to check why Notion tracking is not working for Cassandra
+
 ## Apr 8th 2025
 
 - ok the focus for today is figuring out why Cassandra isn't tracking

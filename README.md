@@ -1,4 +1,3 @@
-Dropping Zapier + Google-Sheets in favor of Supabase for tracking "the Scoreboard"
 
 ## Current Status 
 

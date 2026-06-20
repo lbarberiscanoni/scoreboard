@@ -7,7 +7,8 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Personal productivity section (dummy data for now) */}
+        {/* Personal productivity section */}
+        <Route path="/personal" element={<ProductivityDashboard />} />
         <Route path="/productivity" element={<ProductivityDashboard />} />
         {/* Dynamic routes for different organizations and input types */}
         <Route path="/:organization/:inputType" element={<EventChart />} />

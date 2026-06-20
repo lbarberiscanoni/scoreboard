@@ -1,11 +1,14 @@
 import React from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import EventChart from './components/EventChart';
+import ProductivityDashboard from './components/ProductivityDashboard';
 
 function App() {
   return (
     <Router>
       <Routes>
+        {/* Personal productivity section (dummy data for now) */}
+        <Route path="/productivity" element={<ProductivityDashboard />} />
         {/* Dynamic routes for different organizations and input types */}
         <Route path="/:organization/:inputType" element={<EventChart />} />
         {/* Default or fallback route */}

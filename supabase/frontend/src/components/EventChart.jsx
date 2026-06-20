@@ -105,7 +105,7 @@ const EventChart = () => {
         const { data: orgData, error: orgError } = await supabase
           .from('organizations')
           .select('id')
-          .eq('name', organization)
+          .ilike('name', organization)
           .single();
 
         if (orgError || !orgData) {

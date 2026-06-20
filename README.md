@@ -97,3 +97,38 @@ We also have an initial schema that will help us track all of the Events for the
 
 7. **Emails**
    - Will support this later
+
+## Personal Productivity (Calendar Tracking)
+
+A `personal` organization tracks calendar time, visualized at the `/productivity` route
+(three D3 charts: stacked-area % over time, donut breakdown, and a weekly hours+% combo).
+
+**Schema changes** — apply [`supabase/migrations/20260619_personal_calendar.sql`](supabase/migrations/20260619_personal_calendar.sql)
+in the Supabase SQL editor. It:
+   1. Inserts a `personal` organization and an `owner` user for it.
+   2. Inserts a `calendar` row into `input_types`.
+   3. Adds three **nullable** columns to `events` (empty for code/notion/email events):
+      - `end_time` (timestamptz) — event end; the start lives in the existing `timestamp` column
+      - `title` (text) — event summary
+      - `color` (text) — the calendar color, used as the categorization key
+
+**How calendar events are tracked**
+   - Unlike code/notion (point events, where effort is inferred from *time between* events),
+     calendar events are *intervals* — duration = `end_time − timestamp` is real time spent.
+   - Each event is mapped to a time category by its **color**. The color→category map lives in
+     [`supabase/frontend/src/lib/calendar.js`](supabase/frontend/src/lib/calendar.js) (`COLOR_TO_CATEGORY`)
+     and is editable without re-uploading data.
+
+**Hermes ingestion contract** — write one `events` row per calendar event:
+   | column | value |
+   |---|---|
+   | `org_id` | id of the `personal` org |
+   | `user_id` | id of the `personal` org's owner user |
+   | `input_type_id` | id of the `calendar` input type |
+   | `timestamp` | event **start** |
+   | `end_time` | event **end** |
+   | `title` | event summary |
+   | `color` | calendar color — Google `colorId` ("1".."11") or color name (e.g. "tomato") both work |
+   | `details` | (optional) jsonb; recommend storing the iCal `uid` for idempotency/dedup |
+
+   Look up the ids with the queries at the bottom of the migration file.

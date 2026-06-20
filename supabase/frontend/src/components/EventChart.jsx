@@ -34,6 +34,16 @@ function getLastThursday() {
   return lastThursday;
 }
 
+// Map input type names to their IDs based on the input_types table.
+// Module-scoped so it's stable across renders (keeps the fetch effect's deps clean).
+const inputTypeToIdMap = {
+  notion: 1,
+  code: 2,
+  email: 3,
+  documentation: 10,
+  legal: 11
+};
+
 const EventChart = () => {
   const { organization, inputType } = useParams();
   const [events, setEvents] = useState([]);
@@ -64,15 +74,6 @@ const EventChart = () => {
   const selectedLabels = inputTypeLabels[inputType] || {
     title: "Event Chart",
     xAxis: "Event #",
-  };
-
-  // Map input type names to their IDs based on the input_types table
-  const inputTypeToIdMap = {
-    notion: 1,
-    code: 2,
-    email: 3,
-    documentation: 10,
-    legal: 11
   };
 
   // Helper function to find user across organizations
